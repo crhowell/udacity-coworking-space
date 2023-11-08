@@ -1,13 +1,13 @@
 import logging
 import os
 
-from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime, timedelta
 from flask import jsonify, request
-from sqlalchemy import and_, text
+from sqlalchemy import and_
 from random import randint
 
 from config import app, db
+from models import Token, User
 
 
 port_number = int(os.environ.get("APP_PORT", 5153))
@@ -29,58 +29,43 @@ def readiness_check():
         return "ok"
 
 
-def get_daily_visits():
-    with app.app_context():
-        result = db.session.execute(text("""
-        SELECT Date(created_at) AS date,
-            Count(*)         AS visits
-        FROM   tokens
-        WHERE  used_at IS NOT NULL
-        GROUP  BY Date(created_at)
-        """))
+@app.route("/api/tokens", methods=["POST"])
+def validate_token():
+    user_id = request.args.get("user_id")
+    token_value = request.args.get("value")
 
-        response = {}
-        for row in result:
-            response[str(row[0])] = row[1]
+    if not user_id and token_value:
+        return jsonify(
+            {
+                "message": "user_id and token_value are required fields"
+            }
+        ), 400
 
-        app.logger.info(response)
+    ten_minutes_ago = datetime.now() -  timedelta(minutes=10)
 
-    return response
+    token = Token.query.filter(
+        and_(
+            Token.user_id == user_id,
+            Token.created_at >= ten_minutes_ago,
+        )
+    ).first()
 
+    if token and token.used_at is None:
+        # Mark the token as used
+        token.used_at = datetime.now()
+        db.session.commit()
 
-@app.route("/api/reports/daily_usage", methods=["GET"])
-def daily_visits():
-    # breakpoint()
-    return jsonify(get_daily_visits())
-
-
-@app.route("/api/reports/user_visits", methods=["GET"])
-def all_user_visits():
-    result = db.session.execute(text("""
-    SELECT t.user_id,
-        t.visits,
-        users.joined_at
-    FROM   (SELECT tokens.user_id,
-                Count(*) AS visits
-            FROM   tokens
-            GROUP  BY user_id) AS t
-        LEFT JOIN users
-                ON t.user_id = users.id;
-    """))
-
-    response = {}
-    for row in result:
-        response[row[0]] = {
-            "visits": row[1],
-            "joined_at": str(row[2])
-        }
-    
-    return jsonify(response)
-
-
-scheduler = BackgroundScheduler()
-job = scheduler.add_job(get_daily_visits, 'interval', seconds=30)
-scheduler.start()
+        return jsonify(
+            {
+                "status": "Success"
+            }
+        ), 200
+    else:
+        return jsonify(
+            {
+                "message": "No valid token was found"
+            }
+        ), 400
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=port_number)

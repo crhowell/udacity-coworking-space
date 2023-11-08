@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: api
-        image: 339281547649.dkr.ecr.us-west-2.amazonaws.com/coworking-project:3
+        image: 339281547649.dkr.ecr.us-west-2.amazonaws.com/coworking-project:4
         imagePullPolicy: Always
         livenessProbe:
           httpGet:
@@ -37,5 +37,13 @@ spec:
               name: db-env
               key: DB_USERNAME
         - name: DB_HOST
-          value: coworking-db-postgresql.default.svc.cluster.local
+          valueFrom:
+            configMapKeyRef:
+              name: db-env
+              key: DB_HOST
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: DB_PASSWORD
       restartPolicy: Always
