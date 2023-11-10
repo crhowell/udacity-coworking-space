@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: api
-        image: 339281547649.dkr.ecr.us-west-2.amazonaws.com/coworking-project:7
+        image: 339281547649.dkr.ecr.us-west-2.amazonaws.com/coworking-project:8
         imagePullPolicy: Always
         livenessProbe:
           httpGet:
